@@ -1,0 +1,6 @@
+{
+    "jwt_token": "COPIEZ-VOTRE-TOKEN-NASA-EARTHDATA-ICI",
+    "output_directory": "",
+    "user_name": "Utilisateur",
+    "auto_cleanup": true
+}
