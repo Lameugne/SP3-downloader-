@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 """
-Téléchargeur SP3 intelligent avec produits combinés GPS/GLONASS - VERSION ULTRA-RAPIDES CORRIGÉE
-Logique de sélection automatique optimisée basée sur la disponibilité temporelle IGS
-- IGS Final: disponible après 12 jours (précision 2-3 cm) - PRIORITÉ 1
-- IGR Rapid: disponible après 1 jour (précision 2,5 cm) - PRIORITÉ 2
-- IGU Ultra-rapid: disponible après 3 heures (précision 3-5 cm) - PRIORITÉ 3
-
-CORRECTION SPÉCIFIQUE ULTRA-RAPIDES:
-- Formats IGS20 mis à jour pour 2025
-- Logique temporelle corrigée
-- Noms de fichiers conformes aux standards actuels
+Téléchargeur SP3 intelligent avec produits combinés GPS/GLONASS - VERSION MODIFIÉE
+Modifications v2.2:
+- Suppression du répertoire MGEX inexistant
+- Correction nomenclature ultra-rapides
+- Priorité aux intervalles : 01S > 30S > 05M > 15M
 """
 
 import os
@@ -110,12 +105,11 @@ class SP3CombinedDownloader:
         self.session = requests.Session()
         self.session.headers.update({
             'Authorization': f'Bearer {self.config.get("jwt_token")}',
-            'User-Agent': 'SP3-Combined-Downloader/2.1'
+            'User-Agent': 'SP3-Combined-Downloader/2.2'
         })
         
-        # URLs de base CDDIS
+        # URLs de base CDDIS (MGEX supprimé)
         self.cddis_base = "https://cddis.nasa.gov/archive/gnss/products"
-        self.mgex_base = "https://cddis.nasa.gov/archive/gnss/products/mgex"
         self.broadcast_base = "https://cddis.nasa.gov/archive/gnss/data/daily"
         
         # Seuils de disponibilité des produits IGS (en heures)
@@ -124,6 +118,9 @@ class SP3CombinedDownloader:
             'rapid': 24,           # 1 jour minimum  
             'ultra_rapid': 3       # 3 heures minimum
         }
+        
+        # Intervalles de temps par ordre de priorité
+        self.time_intervals = ['01S', '30S', '05M', '15M']
         
         # Précisions et caractéristiques des produits
         self.product_specs = {
@@ -213,8 +210,8 @@ class SP3CombinedDownloader:
     
     def generate_combined_sp3_filenames(self, target_date, product_type):
         """
-        Génère les noms de fichiers SP3 basés sur les formats RÉELS observés
-        VERSION CORRIGÉE SPÉCIFIQUEMENT POUR LES ULTRA-RAPIDES 2025
+        Génère les noms de fichiers SP3 avec priorité aux intervalles de temps
+        Version modifiée pour nomenclature ultra-rapides et intervalles prioritaires
         """
         gps_week, day_of_week, date_obj = self.date_to_gps_week(target_date)
         year = date_obj.year
@@ -228,42 +225,28 @@ class SP3CombinedDownloader:
         if use_new_format:
             # Format moderne (depuis GPS Week 2238)
             if product_type == 'final':
-                # PRODUITS FINAUX - Formats confirmés qui fonctionnent
-                filenames.append(f"COD0MGXFIN_{year}{doy:03d}0000_01D_05M_ORB.SP3.gz")
-                filenames.append(f"COD0MGXFIN_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
-                filenames.append(f"GFZ0MGXFIN_{year}{doy:03d}0000_01D_05M_ORB.SP3.gz")
-                filenames.append(f"GFZ0MGXFIN_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
-                filenames.append(f"WUM0MGXFIN_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
-                filenames.append(f"IGS0OPSFIN_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
+                # PRODUITS FINAUX avec intervalles prioritaires
+                for interval in self.time_intervals:
+                    filenames.append(f"IGS0OPSFIN_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    filenames.append(f"COD0MGXFIN_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    filenames.append(f"GFZ0MGXFIN_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    filenames.append(f"WUM0MGXFIN_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    
                     
             elif product_type == 'rapid':
-                # PRODUITS RAPIDES - Basé sur vos observations réelles
-                # Vous avez trouvé: COD0OPSRAP_20251880000_01D_05M_ORB.SP3.gz
-                filenames.append(f"COD0OPSRAP_{year}{doy:03d}0000_01D_05M_ORB.SP3.gz")
-                filenames.append(f"COD0OPSRAP_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
-                
-                # GFZ équivalent
-                filenames.append(f"GFZ0OPSRAP_{year}{doy:03d}0000_01D_05M_ORB.SP3.gz")
-                filenames.append(f"GFZ0OPSRAP_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
-                
-                # JPL
-                filenames.append(f"JPL0OPSRAP_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
-                
-                # IGS rapides officiels
-                filenames.append(f"IGS0OPSRAP_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
-                
-                # Format alternatif IGR
-                filenames.append(f"IGR0OPSRAP_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz")
+                # PRODUITS RAPIDES avec intervalles prioritaires
+                for interval in self.time_intervals:
+                    filenames.append(f"IGS0OPSRAP_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    filenames.append(f"COD0OPSRAP_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    filenames.append(f"GFZ0OPSRAP_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    filenames.append(f"JPL0OPSRAP_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
+                    filenames.append(f"IGR0OPSRAP_{year}{doy:03d}0000_01D_{interval}_ORB.SP3.gz")
                     
             elif product_type == 'ultra_rapid':
-                # PRODUITS ULTRA-RAPIDES - CORRECTION MAJEURE POUR 2025
-                
+                # PRODUITS ULTRA-RAPIDES - Format corrigé
                 now = datetime.now()
                 
-                # PRIORITÉ 1: Format IGS20 moderne (nouveau standard 2025)
-                # Les ultra-rapides IGS20 sont disponibles toutes les 6h: 00, 06, 12, 18 UTC
-                # avec un délai de disponibilité de 3 heures
-                
+                # Les ultra-rapides IGS sont disponibles toutes les 6h: 00, 06, 12, 18 UTC
                 available_hours = []
                 
                 if date_obj.date() == now.date():
@@ -279,29 +262,29 @@ class SP3CombinedDownloader:
                         _, _, yesterday_obj = self.date_to_gps_week(yesterday)
                         yesterday_doy = yesterday_obj.timetuple().tm_yday
                         for h in [18, 12]:  # Heures de fin de journée d'hier
-                            filenames.append(f"IGS0OPSULT_{year}{yesterday_doy:03d}{h:02d}00_02D_15M_ORB.SP3.gz")
-                            filenames.append(f"COD0OPSULT_{year}{yesterday_doy:03d}{h:02d}00_02D_15M_ORB.SP3.gz")
-                            filenames.append(f"GFZ0OPSULT_{year}{yesterday_doy:03d}{h:02d}00_02D_15M_ORB.SP3.gz")
+                            for interval in self.time_intervals:
+                                filenames.append(f"IGS0OPSULT_{year}{yesterday_doy:03d}{h:02d}00_02D_{interval}_ORB.SP3.gz")
+                                filenames.append(f"COD0OPSULT_{year}{yesterday_doy:03d}{h:02d}00_02D_{interval}_ORB.SP3.gz")
+                                filenames.append(f"GFZ0OPSULT_{year}{yesterday_doy:03d}{h:02d}00_02D_{interval}_ORB.SP3.gz")
                 else:
                     # Date passée - toutes les heures disponibles
                     available_hours = ['18', '12', '06', '00']
                 
-                # Ajouter les heures disponibles d'aujourd'hui
-                # Format principal IGS20 ultra-rapide (2 jours de prédiction)
+                # Ajouter les heures disponibles avec intervalles prioritaires
                 for hour in available_hours:
-                    # Formats principaux observés dans votre listing CDDIS
-                    filenames.append(f"IGS0OPSULT_{year}{doy:03d}{hour}00_02D_15M_ORB.SP3.gz")
-                    filenames.append(f"COD0OPSULT_{year}{doy:03d}{hour}00_02D_15M_ORB.SP3.gz")
-                    filenames.append(f"GFZ0OPSULT_{year}{doy:03d}{hour}00_02D_15M_ORB.SP3.gz")
-                    filenames.append(f"JPL0OPSULT_{year}{doy:03d}{hour}00_02D_15M_ORB.SP3.gz")
-                    
-                    # Variantes 1D (1 jour)
-                    filenames.append(f"IGS0OPSULT_{year}{doy:03d}{hour}00_01D_15M_ORB.SP3.gz")
-                    filenames.append(f"COD0OPSULT_{year}{doy:03d}{hour}00_01D_15M_ORB.SP3.gz")
-                    filenames.append(f"GFZ0OPSULT_{year}{doy:03d}{hour}00_01D_15M_ORB.SP3.gz")
+                    for interval in self.time_intervals:
+                        # Format principal observé dans les exemples fournis
+                        filenames.append(f"IGS0OPSULT_{year}{doy:03d}{hour}00_02D_{interval}_ORB.SP3.gz")
+                        filenames.append(f"COD0OPSULT_{year}{doy:03d}{hour}00_02D_{interval}_ORB.SP3.gz")
+                        filenames.append(f"GFZ0OPSULT_{year}{doy:03d}{hour}00_02D_{interval}_ORB.SP3.gz")
+                        filenames.append(f"JPL0OPSULT_{year}{doy:03d}{hour}00_02D_{interval}_ORB.SP3.gz")
+                        
+                        # Variantes 1D (1 jour)
+                        filenames.append(f"IGS0OPSULT_{year}{doy:03d}{hour}00_01D_{interval}_ORB.SP3.gz")
+                        filenames.append(f"COD0OPSULT_{year}{doy:03d}{hour}00_01D_{interval}_ORB.SP3.gz")
+                        filenames.append(f"GFZ0OPSULT_{year}{doy:03d}{hour}00_01D_{interval}_ORB.SP3.gz")
                 
-                # PRIORITÉ 2: Format hérité comme fallback (parfois encore disponible)
-                # Format ancien avec logique d'heures compatible
+                # Format hérité comme fallback (sans priorité d'intervalles)
                 legacy_hours = []
                 if date_obj.date() == now.date():
                     current_hour = now.hour
@@ -416,52 +399,65 @@ class SP3CombinedDownloader:
         try:
             filenames, gps_week, use_new_format = self.generate_combined_sp3_filenames(target_date, product_type)
             
-            repositories = [
-                f"{self.mgex_base}/{gps_week:04d}/",
-                f"{self.cddis_base}/{gps_week:04d}/"
-            ]
+            # Un seul répertoire maintenant (pas de MGEX)
+            repository = f"{self.cddis_base}/{gps_week:04d}/"
             
             print(f"   Recherche de {len(filenames)} variantes de fichiers...")
             print(f"   📅 Semaine GPS: {gps_week}, Format: {'IGS20' if use_new_format else 'Hérité'}")
+            print(f"   📂 Répertoire: {repository}")
+            
+            # Afficher la priorité des intervalles
+            if product_type in ['final', 'rapid', 'ultra_rapid'] and use_new_format:
+                print(f"   ⏱️  Priorité intervalles: {' > '.join(self.time_intervals)}")
             
             # Afficher quelques exemples de fichiers recherchés
             if len(filenames) > 0:
                 print(f"   📋 Exemples recherchés:")
-                for i, fname in enumerate(filenames[:3]):
+                for i, fname in enumerate(filenames[:5]):
                     print(f"      {i+1}. {fname}")
-                if len(filenames) > 3:
-                    print(f"      ... et {len(filenames)-3} autres variantes")
+                if len(filenames) > 5:
+                    print(f"      ... et {len(filenames)-5} autres variantes")
             
-            for i, repo_url in enumerate(repositories):
-                print(f"   📂 Répertoire {i+1}/{len(repositories)}: {repo_url}")
+            # Recherche dans le répertoire unique
+            for j, filename in enumerate(filenames):
+                file_url = repository + filename
                 
-                for j, filename in enumerate(filenames):
-                    file_url = repo_url + filename
+                try:
+                    response = self.session.head(file_url, timeout=8)
                     
-                    try:
-                        response = self.session.head(file_url, timeout=8)
+                    if response.status_code == 200:
+                        # Extraire l'intervalle du nom de fichier pour l'affichage
+                        interval_match = None
+                        for interval in self.time_intervals:
+                            if f"_{interval}_" in filename:
+                                interval_match = interval
+                                break
                         
-                        if response.status_code == 200:
-                            print(f"   ✅ Trouvé: {filename}")
-                            return self.download_file(file_url, filename)
-                        elif response.status_code == 404:
-                            # Afficher seulement les premiers échecs pour diagnostic
-                            if j < 3:
-                                print(f"   ❌ 404: {filename}")
-                        elif response.status_code == 401:
-                            print(f"   🔐 401 Authentification requise: {filename}")
-                            print(f"   💡 Vérifiez votre token JWT dans les paramètres")
-                            break
+                        if interval_match:
+                            print(f"   ✅ Trouvé [{interval_match}]: {filename}")
                         else:
-                            if j < 3:
-                                print(f"   ⚠️ Erreur {response.status_code}: {filename}")
+                            print(f"   ✅ Trouvé: {filename}")
+                            
+                        return self.download_file(file_url, filename)
                         
-                    except Exception as e:
+                    elif response.status_code == 404:
+                        # Afficher seulement les premiers échecs pour diagnostic
+                        if j < 1:
+                            print(f"   🔄  .........  ")
+                    elif response.status_code == 401:
+                        print(f"   🔐 401 Authentification requise: {filename}")
+                        print(f"   💡 Vérifiez votre token JWT dans les paramètres")
+                        break
+                    else:
                         if j < 3:
-                            print(f"   ⚠️ Erreur réseau: {filename}")
-                        continue
+                            print(f"   ⚠️ Erreur {response.status_code}: {filename}")
+                    
+                except Exception as e:
+                    if j < 3:
+                        print(f"   ⚠️ Erreur réseau: {filename}")
+                    continue
             
-            print(f"   ❌ Aucun fichier {product_type} trouvé dans {len(repositories)} répertoires")
+            print(f"   ❌ Aucun fichier {product_type} trouvé")
             return None
             
         except Exception as e:
@@ -763,6 +759,7 @@ def download_sp3_file(config_manager):
     
     # Téléchargement
     print(f"\n🚀 Début téléchargement...")
+    print(f"⏱️ Priorité intervalles: {' > '.join(downloader.time_intervals)}")
     downloaded_file = downloader.smart_download_sp3(target_date)
     
     if downloaded_file:
@@ -813,7 +810,7 @@ def main():
     while True:
         try:
             print("\n" + "=" * 50)
-            print(f"🛰️  SP3 DOWNLOADER v2.1 ")
+            print(f"🛰️  SP3 DOWNLOADER v2.2 ")
             print("=" * 50)
             print(f"👤 {config_manager.get('user_name')}")
             print(f"📁 {config_manager.get('output_directory')}")
